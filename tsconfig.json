@@ -10,5 +10,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["src", "mock-origin", "test"]
+  "include": ["src", "test"]
 }

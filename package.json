@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev -c wrangler.jsonc -c mock-origin/wrangler.jsonc",
+    "dev": "wrangler dev",
+    "dev:origin": "node mock-origin/server.mjs",
     "test": "vitest run",
     "typecheck": "wrangler types && tsc --noEmit"
   },
