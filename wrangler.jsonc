@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "adaptive-traffic-routing",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-15",
+  "vars": {
+    "DEBUG_GEO": "true"
+  }
+}
