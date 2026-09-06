@@ -2,7 +2,7 @@ import { createExecutionContext, env, reset, waitOnExecutionContext } from 'clou
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import worker from '../src/index';
 import type { Region } from '../src/regions';
-import { downKey } from '../src/state';
+import { downKey, rttKey } from '../src/state';
 
 type OriginBehaviour = number | 'unreachable';
 
@@ -44,6 +44,14 @@ describe('GET /time', () => {
     expect(response.headers.get('x-route-reason')).toBe('best');
     expect(await response.json()).toMatchObject({ region: 'asia' });
     expect(regionsCalled()).toEqual(['asia']);
+  });
+
+  it('records the measured latency for the colo', async () => {
+    origins({});
+
+    await userFrom('GRU', 'SA');
+
+    expect(await env.STATE.get(rttKey('GRU'), 'json')).toEqual({ na: expect.any(Number) });
   });
 
   it('fails over to the next region when the best one errors', async () => {

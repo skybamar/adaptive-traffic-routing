@@ -1,13 +1,15 @@
 import { CircuitBreaker } from './breaker';
+import { LatencyTracker } from './latency';
 import type { Region } from './regions';
 import { rankRegions } from './routing';
 import { probeRegions } from './probe';
-import { markDown, readRoutingState } from './state';
+import { markDown, readRoutingState, writeRtt } from './state';
 
 const ORIGIN_TIMEOUT_MS = 2000;
 const RETRIABLE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 const breaker = new CircuitBreaker();
+const latency = new LatencyTracker();
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -31,14 +33,18 @@ export default {
 async function routeToOrigin(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const { colo, continent } = geolocation(request, env);
   const state = await readRoutingState(env.STATE, colo);
+  latency.seed(colo, state.rtt);
   const excluded = new Set([...(state.excluded ?? []), ...breaker.openRegions()]);
   const candidates = rankRegions({ ...state, excluded }, { continent });
   const attempts = candidates.slice(0, isRetriable(request) ? 2 : 1);
 
   for (const [attempt, region] of attempts.entries()) {
+    const startedAt = Date.now();
     const response = await fetchOrigin(region, request, env);
     if (response) {
       breaker.recordSuccess(region);
+      const rtt = latency.record(colo, region, Date.now() - startedAt);
+      if (rtt) ctx.waitUntil(writeRtt(env.STATE, colo, rtt));
       return withRoutingHeaders(response, region, attempt === 0 ? 'best' : 'failover', colo);
     }
     if (breaker.recordFailure(region)) {
