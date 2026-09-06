@@ -5,7 +5,11 @@
   "compatibility_date": "2026-08-15",
   "vars": {
     "ORIGIN_URL": "http://localhost:9000",
+    "PROBE_TOKEN": "local-dev-token",
     "DEBUG": "true"
+  },
+  "triggers": {
+    "crons": ["* * * * *"]
   },
   "kv_namespaces": [
     { "binding": "STATE", "id": "state" }

@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 
 const PORT = Number(process.env.PORT ?? 9000);
+const PROBE_TOKEN = process.env.PROBE_TOKEN ?? 'local-dev-token';
 const SLOW_RESPONSE_MS = 3000;
 
 const IDLE_HEALTH = { load: 0.35, cpu: 0.35, connections: 120, queueDepth: 0 };
@@ -22,6 +23,7 @@ createServer(async (request, response) => {
     case '/time':
       return sendJson(response, { region, serverTime: new Date().toISOString() });
     case '/health':
+      if (request.headers.authorization !== `Bearer ${PROBE_TOKEN}`) return send(response, 401, 'Unauthorized');
       return sendJson(response, simulate === 'busy' ? BUSY_HEALTH : IDLE_HEALTH);
     default:
       return send(response, 404, 'Not found');

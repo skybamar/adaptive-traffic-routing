@@ -1,6 +1,7 @@
 import { CircuitBreaker } from './breaker';
 import type { Region } from './regions';
 import { rankRegions } from './routing';
+import { probeRegions } from './probe';
 import { markDown, readRoutingState } from './state';
 
 const ORIGIN_TIMEOUT_MS = 2000;
@@ -20,6 +21,10 @@ export default {
       default:
         return new Response('Not found', { status: 404 });
     }
+  },
+
+  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    await probeRegions(env);
   },
 } satisfies ExportedHandler<Env>;
 
