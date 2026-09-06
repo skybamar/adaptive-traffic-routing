@@ -4,6 +4,10 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-15",
   "vars": {
-    "DEBUG_GEO": "true"
-  }
+    "ORIGIN_URL": "http://localhost:9000",
+    "DEBUG": "true"
+  },
+  "kv_namespaces": [
+    { "binding": "STATE", "id": "state" }
+  ]
 }
