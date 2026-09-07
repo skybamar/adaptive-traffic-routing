@@ -1,12 +1,13 @@
 import { CircuitBreaker } from './breaker';
+import { geolocation } from './geo';
 import { LatencyTracker } from './latency';
+import { fetchOrigin, isRetriable, withRoutingHeaders } from './origin';
+import { probeRegions } from './probe';
 import type { Region } from './regions';
 import { rankRegions } from './routing';
-import { probeRegions } from './probe';
 import { markRegionDown, readRoutingState, writeRtt } from './state';
 
-const ORIGIN_TIMEOUT_MS = 2000;
-const RETRIABLE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const MAX_ATTEMPTS = 2;
 
 const breaker = new CircuitBreaker();
 const latency = new LatencyTracker();
@@ -32,61 +33,37 @@ export default {
 
 async function routeToOrigin(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const { colo, continent } = geolocation(request, env);
-  const state = await readRoutingState(env.STATE, colo);
-  latency.seed(colo, state.rtt);
-  const excluded = new Set([...(state.excluded ?? []), ...breaker.getOpenRegions()]);
-  const candidates = rankRegions({ ...state, excluded }, { continent });
-  const attempts = candidates.slice(0, isRetriable(request) ? 2 : 1);
+  const candidates = await rankCandidates(colo, continent, env);
+  const attempts = candidates.slice(0, isRetriable(request) ? MAX_ATTEMPTS : 1);
 
   for (const [attempt, region] of attempts.entries()) {
     const startedAt = Date.now();
     const response = await fetchOrigin(region, request, env);
     if (response) {
-      breaker.recordSuccess(region);
-      const rtt = latency.record(colo, region, Date.now() - startedAt);
-      if (rtt) ctx.waitUntil(writeRtt(env.STATE, colo, rtt));
+      recordSuccess(region, colo, Date.now() - startedAt, env, ctx);
       return withRoutingHeaders(response, region, attempt === 0 ? 'best' : 'failover', colo);
     }
-    if (breaker.recordFailure(region)) {
-      ctx.waitUntil(markRegionDown(env.STATE, region, colo));
-    }
+    recordFailure(region, colo, env, ctx);
   }
 
   return new Response('No region available', { status: 503, headers: { 'retry-after': '5' } });
 }
 
-async function fetchOrigin(region: Region, request: Request, env: Env): Promise<Response | undefined> {
-  const { pathname, search } = new URL(request.url);
+async function rankCandidates(colo: string, continent: string, env: Env): Promise<Region[]> {
+  const state = await readRoutingState(env.STATE, colo);
+  latency.seed(colo, state.rtt);
+  const excluded = new Set([...(state.excluded ?? []), ...breaker.getOpenRegions()]);
+  return rankRegions({ ...state, excluded }, { continent });
+}
 
-  try {
-    const response = await fetch(new URL(pathname + search, env.ORIGIN_URL), {
-      method: request.method,
-      headers: { 'x-region': region },
-      signal: AbortSignal.timeout(ORIGIN_TIMEOUT_MS),
-    });
-    return response.status < 500 ? response : undefined;
-  } catch {
-    return undefined;
+function recordSuccess(region: Region, colo: string, elapsedMs: number, env: Env, ctx: ExecutionContext): void {
+  breaker.recordSuccess(region);
+  const rtt = latency.record(colo, region, elapsedMs);
+  if (rtt) ctx.waitUntil(writeRtt(env.STATE, colo, rtt));
+}
+
+function recordFailure(region: Region, colo: string, env: Env, ctx: ExecutionContext): void {
+  if (breaker.recordFailure(region)) {
+    ctx.waitUntil(markRegionDown(env.STATE, region, colo));
   }
-}
-
-function withRoutingHeaders(response: Response, region: Region, reason: string, colo: string): Response {
-  const headers = new Headers(response.headers);
-  headers.set('x-served-region', region);
-  headers.set('x-route-reason', reason);
-  headers.set('x-colo', colo);
-  return new Response(response.body, { status: response.status, headers });
-}
-
-function isRetriable(request: Request): boolean {
-  return RETRIABLE_METHODS.has(request.method) || request.headers.has('idempotency-key');
-}
-
-function geolocation(request: Request, env: Env): { colo: string; continent: string } {
-  const cf = request.cf as IncomingRequestCfProperties | undefined;
-  const override = (name: string) => (env.DEBUG === 'true' ? request.headers.get(name) : null);
-  return {
-    colo: override('x-debug-colo') || cf?.colo || 'unknown',
-    continent: override('x-debug-continent') || cf?.continent || 'unknown',
-  };
 }
