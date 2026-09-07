@@ -22,7 +22,7 @@ const STICKINESS_MS = 20;
 
 export function rankRegions(state: RoutingState, ctx: RoutingContext): Region[] {
   return REGIONS.filter((region) => isAvailable(region, state))
-    .map((region) => ({ region, score: score(region, state, ctx) }))
+    .map((region) => ({ region, score: scoreRegion(region, state, ctx) }))
     .sort((a, b) => a.score - b.score)
     .map(({ region }) => region);
 }
@@ -37,7 +37,7 @@ function isAvailable(region: Region, state: RoutingState): boolean {
   return !state.excluded?.has(region) && state.regions?.[region]?.healthy !== false;
 }
 
-function score(region: Region, state: RoutingState, ctx: RoutingContext): number {
+function scoreRegion(region: Region, state: RoutingState, ctx: RoutingContext): number {
   return expectedLatency(region, state, ctx) + loadPenalty(state.regions?.[region]?.load ?? 0) - stickinessBonus(region, ctx);
 }
 

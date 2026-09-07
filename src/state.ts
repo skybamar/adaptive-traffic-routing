@@ -27,7 +27,7 @@ export function writeRtt(kv: KVNamespace, colo: string, rtt: RttValue): Promise<
   return kv.put(rttKey(colo), JSON.stringify(rtt));
 }
 
-export function markDown(kv: KVNamespace, region: Region, colo: string): Promise<void> {
+export function markRegionDown(kv: KVNamespace, region: Region, colo: string): Promise<void> {
   const marker = JSON.stringify({ at: new Date().toISOString(), colo });
   return kv.put(downKey(region), marker, { expirationTtl: DOWN_MARKER_TTL_SECONDS });
 }

@@ -3,20 +3,20 @@ import { REGIONS, type Region } from './regions';
 const FAILURES_TO_OPEN = 2;
 const OPEN_FOR_MS = 30_000;
 
-interface RegionState {
+interface BreakerState {
   failures: number;
   openedAt?: number;
 }
 
 export class CircuitBreaker {
-  private readonly states = new Map<Region, RegionState>();
+  private readonly states = new Map<Region, BreakerState>();
 
   isOpen(region: Region, now = Date.now()): boolean {
     const openedAt = this.states.get(region)?.openedAt;
     return openedAt !== undefined && now - openedAt < OPEN_FOR_MS;
   }
 
-  openRegions(now = Date.now()): ReadonlySet<Region> {
+  getOpenRegions(now = Date.now()): ReadonlySet<Region> {
     return new Set(REGIONS.filter((region) => this.isOpen(region, now)));
   }
 

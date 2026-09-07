@@ -3,7 +3,7 @@ import { LatencyTracker } from './latency';
 import type { Region } from './regions';
 import { rankRegions } from './routing';
 import { probeRegions } from './probe';
-import { markDown, readRoutingState, writeRtt } from './state';
+import { markRegionDown, readRoutingState, writeRtt } from './state';
 
 const ORIGIN_TIMEOUT_MS = 2000;
 const RETRIABLE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -34,7 +34,7 @@ async function routeToOrigin(request: Request, env: Env, ctx: ExecutionContext):
   const { colo, continent } = geolocation(request, env);
   const state = await readRoutingState(env.STATE, colo);
   latency.seed(colo, state.rtt);
-  const excluded = new Set([...(state.excluded ?? []), ...breaker.openRegions()]);
+  const excluded = new Set([...(state.excluded ?? []), ...breaker.getOpenRegions()]);
   const candidates = rankRegions({ ...state, excluded }, { continent });
   const attempts = candidates.slice(0, isRetriable(request) ? 2 : 1);
 
@@ -48,7 +48,7 @@ async function routeToOrigin(request: Request, env: Env, ctx: ExecutionContext):
       return withRoutingHeaders(response, region, attempt === 0 ? 'best' : 'failover', colo);
     }
     if (breaker.recordFailure(region)) {
-      ctx.waitUntil(markDown(env.STATE, region, colo));
+      ctx.waitUntil(markRegionDown(env.STATE, region, colo));
     }
   }
 
