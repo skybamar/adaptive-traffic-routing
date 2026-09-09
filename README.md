@@ -143,6 +143,11 @@ region is skipped without being tried. On that transition the worker writes
   the latency it measured per region, seeded from `rtt:<colo>`, and writes
   it back at most every 10 s. Lost writes between isolates of the same PoP
   do not matter: the average converges.
+- Real traffic only measures the region it is sent to, so the estimates of
+  the other regions would freeze. After a sampled request (`EXPLORE_SAMPLE_RATE`,
+  1 % by default) the worker therefore also times a `GET /time` on the
+  regions it did not use, in the background after the response, and feeds
+  the results into the same average.
 - The router reads everything with a 60 s `cacheTtl`; when KV has nothing,
   a static table (continent → latency estimate) keeps routing sane.
 
@@ -159,6 +164,12 @@ region is skipped without being tried. On that transition the worker writes
   the authority to reset it; a TTL needs nobody.
 - **Origins report their own load.** Capacity lives where it changes, with
   the hardware.
+- **Background sampling instead of exploratory routing.** Learning only from
+  the region you send traffic to is the classic exploration problem: the
+  runner-up never gets measured and its estimate goes stale. Sending a share
+  of real users to a worse region (ε-greedy) would fix that at the users'
+  expense. Timing the other regions after the response costs the user
+  nothing and the origins one light request per hundred.
 
 ### What I would do next
 

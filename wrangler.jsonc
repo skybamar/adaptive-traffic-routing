@@ -6,6 +6,7 @@
   "vars": {
     "ORIGIN_URL": "http://localhost:9000",
     "PROBE_TOKEN": "local-dev-token",
+    "EXPLORE_SAMPLE_RATE": "0.01",
     "DEBUG": "true"
   },
   "triggers": {

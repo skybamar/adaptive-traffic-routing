@@ -19,9 +19,15 @@ export class LatencyTracker {
   }
 
   record(colo: string, region: Region, sampleMs: number, now = Date.now()): RttValue | undefined {
+    return this.recordAll(colo, { [region]: sampleMs }, now);
+  }
+
+  recordAll(colo: string, samples: RttValue, now = Date.now()): RttValue | undefined {
     const entry = this.colos.get(colo) ?? { rtt: {} };
-    const previous = entry.rtt[region];
-    entry.rtt[region] = previous === undefined ? sampleMs : previous + SMOOTHING * (sampleMs - previous);
+    for (const [region, sampleMs] of Object.entries(samples) as [Region, number][]) {
+      const previous = entry.rtt[region];
+      entry.rtt[region] = previous === undefined ? sampleMs : previous + SMOOTHING * (sampleMs - previous);
+    }
     this.colos.set(colo, entry);
 
     if (entry.flushedAt !== undefined && now - entry.flushedAt < FLUSH_INTERVAL_MS) return undefined;

@@ -1,4 +1,5 @@
 import { CircuitBreaker } from './breaker';
+import { measureOrigins, shouldExplore } from './exploration';
 import { geolocation } from './geo';
 import { LatencyTracker } from './latency';
 import { fetchOrigin, isRetriable, withRoutingHeaders } from './origin';
@@ -41,6 +42,9 @@ async function routeToOrigin(request: Request, env: Env, ctx: ExecutionContext):
     const response = await fetchOrigin(region, request, env);
     if (response) {
       recordSuccess(region, colo, Date.now() - startedAt, env, ctx);
+      if (shouldExplore(Number(env.EXPLORE_SAMPLE_RATE))) {
+        ctx.waitUntil(exploreOthers(colo, candidates.filter((other) => other !== region), env));
+      }
       return withRoutingHeaders(response, region, attempt === 0 ? 'best' : 'failover', colo);
     }
     recordFailure(region, colo, env, ctx);
@@ -60,6 +64,11 @@ function recordSuccess(region: Region, colo: string, elapsedMs: number, env: Env
   breaker.recordSuccess(region);
   const rtt = latency.record(colo, region, elapsedMs);
   if (rtt) ctx.waitUntil(writeRtt(env.STATE, colo, rtt));
+}
+
+async function exploreOthers(colo: string, regions: Region[], env: Env): Promise<void> {
+  const rtt = latency.recordAll(colo, await measureOrigins(regions, env));
+  if (rtt) await writeRtt(env.STATE, colo, rtt);
 }
 
 function recordFailure(region: Region, colo: string, env: Env, ctx: ExecutionContext): void {

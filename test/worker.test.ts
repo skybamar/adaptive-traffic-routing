@@ -1,5 +1,5 @@
 import { createExecutionContext, env, reset, waitOnExecutionContext } from 'cloudflare:test';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import worker from '../src/index';
 import type { Region } from '../src/regions';
 import { downKey, rttKey } from '../src/state';
@@ -9,8 +9,14 @@ type OriginBehaviour = number | 'unreachable';
 const originFetch = vi.fn<typeof fetch>();
 vi.stubGlobal('fetch', originFetch);
 
+const neverExplore = () => vi.spyOn(Math, 'random').mockReturnValue(1);
+const alwaysExplore = () => vi.spyOn(Math, 'random').mockReturnValue(0);
+
+beforeEach(neverExplore);
+
 afterEach(async () => {
   originFetch.mockReset();
+  vi.restoreAllMocks();
   await reset();
 });
 
@@ -52,6 +58,25 @@ describe('GET /time', () => {
     await userFrom('GRU', 'SA');
 
     expect(await env.STATE.get(rttKey('GRU'), 'json')).toEqual({ na: expect.any(Number) });
+  });
+
+  it('learns the latency of the regions it did not route to', async () => {
+    alwaysExplore();
+    const start = Date.now() + 60_000;
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(start);
+    origins({});
+
+    await userFrom('HKG', 'AS');
+    expect(regionsCalled().sort()).toEqual(['asia', 'eu', 'na']);
+
+    clock.mockReturnValue(start + 10_000);
+    await userFrom('HKG', 'AS');
+
+    expect(await env.STATE.get(rttKey('HKG'), 'json')).toEqual({
+      asia: expect.any(Number),
+      eu: expect.any(Number),
+      na: expect.any(Number),
+    });
   });
 
   it('fails over to the next region when the best one errors', async () => {
