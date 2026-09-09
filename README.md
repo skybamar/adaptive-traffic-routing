@@ -1,10 +1,17 @@
 # Adaptive Traffic Routing Service
 
+[![CI](https://github.com/skybamar/adaptive-traffic-routing/actions/workflows/ci.yml/badge.svg)](https://github.com/skybamar/adaptive-traffic-routing/actions/workflows/ci.yml)
+
 A Cloudflare Worker that sits in front of three physical regions – Europe
 (Gravelines), North America (Beauharnois) and Asia (Singapore) – and sends
 each request to the region with the lowest expected latency, taking current
 load and outages into account. `GET /time` returns the time of the server
 that was picked.
+
+Built as a take-home assignment for a public API team: the brief asked for
+the design of such a routing layer on Cloudflare, with a working `/time`
+endpoint. The design decisions are described below; the code is a small
+prototype of them that runs locally without a Cloudflare account.
 
 ## Requirements
 
@@ -47,7 +54,9 @@ string, so the same parameter works through it:
 ### Scenarios
 
 Locally there is no real geolocation, so the worker accepts `X-Debug-Colo`
-and `X-Debug-Continent` headers while `DEBUG` is on. Every response carries
+and `X-Debug-Continent` headers while `DEBUG` is on. The flag is set in
+`wrangler.jsonc` for local development only; a production environment
+leaves it off and the headers are ignored. Every response carries
 `x-served-region` and `x-route-reason` (`best` or `failover`).
 
 ```bash
@@ -181,16 +190,3 @@ region is skipped without being tried. On that transition the worker writes
   Object if exact error rates over a window are ever needed.
 - Cloudflare Tunnel in front of the origins and the probe token as a Worker
   secret instead of a config variable.
-
-## Time spent
-
-| Time | What |
-|---|---|
-| 0:40 | reading the assignment, design notes, plan |
-| 0:15 | project bootstrap |
-| 0:30 | region ranking with tests |
-| 0:25 | mock origin, first README |
-| 0:50 | KV state, circuit breaker, router with failover, tests |
-| 0:30 | cron probe, latency tracking |
-| 0:15 | CI, README |
-| **3:25** | |
