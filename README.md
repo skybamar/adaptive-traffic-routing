@@ -114,12 +114,12 @@ breaker:
 ```
 score = latency to the region          measured for this PoP, static estimate per continent otherwise
       + load penalty                   0 up to 70 % load, then quadratic up to 400 ms
-      - 20 ms                          if this is the region used last time
 ```
 
 Lowest score wins, the rest is the fallback order. The load penalty moves
-traffic away from a busy region before it starts failing; the bonus for the
-previous region stops two similar regions from flapping.
+traffic away from a busy region before it starts failing. Two regions with
+similar latency do not flap on measurement noise because the latency
+estimate is a smoothed average that moves slowly, not the last sample.
 
 ### Failover (`src/index.ts`, `src/breaker.ts`)
 

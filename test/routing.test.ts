@@ -40,10 +40,4 @@ describe('rankRegions', () => {
     expect(rankRegions({ rtt, regions: busy(0.85) }, { continent: 'AS' })[0]).toBe('asia');
     expect(rankRegions({ rtt, regions: busy(0.95) }, { continent: 'AS' })[0]).toBe('eu');
   });
-
-  it('sticks to the previous region unless another one is clearly better', () => {
-    const rtt = { eu: 30, na: 20, asia: 200 };
-    expect(rankRegions({ rtt }, { continent: 'EU', previous: 'eu' })[0]).toBe('eu');
-    expect(rankRegions({ rtt: { ...rtt, na: 5 } }, { continent: 'EU', previous: 'eu' })[0]).toBe('na');
-  });
 });
